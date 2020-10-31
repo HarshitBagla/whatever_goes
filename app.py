@@ -55,10 +55,9 @@ def create_tables():
         create_watchlist_to_stock = """ 
         CREATE TABLE watchlistToStock (
         watchListId INT REFERENCES WatchList(id),
-        ticker INT REFERENCES Stocks(ticker),
+        ticker CHAR REFERENCES Stocks(ticker),
 
-        PRIMARY KEY (watchListId, 'ticker')
-        UNIQUE(watchListId, ticker)
+        PRIMARY KEY (watchListId, ticker)
         );"""
 
         create_users = """ 
@@ -84,6 +83,10 @@ def create_tables():
 
         rs_t = con.execute(create_transactions)
         print ("Created Tranasction Table") 
+
+        rs_ws = con.execute(create_watchlist_to_stock)
+        print ("Created WatchList and Stock Relation Table") 
+
     return "Finished Creating Tables"
 
        

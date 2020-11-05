@@ -1,0 +1,19 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+    <h1>Watch List <small> Welcome {{session.username}}</small></h1>
+    <table class="table table-striped">
+        <tr>
+            <th>Ticker</th>
+            <th>Close Price</th>
+            <th>Open Price</th>
+            <th>Last Update</th>
+            <th></th>
+        </tr>
+        {% for stock in stocks %}
+            <tr>
+                
+            </tr>
+        {% endfor %}
+    </table>
+{% endblock %}

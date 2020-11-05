@@ -109,7 +109,7 @@ def is_logged_in(f):
 
 
 class RegisterForm(Form):
-    name = StringField('First Name', [validators.Length(min=4, max=30)])
+    name = StringField('Name', [validators.Length(min=4, max=30)])
     username = StringField('Username', [validators.Length(min=4, max=25)])
     email = StringField('Email', [validators.Length(min=6, max=50)])
     password = PasswordField('Password', [
@@ -132,21 +132,18 @@ def register():
         loginTime_input = datetime.now()
         regTime_input = datetime.now()
 
-        with eng.connect as con:
-            add_user = """
-            INSERT INTO Users (name, email, username, password, loginTime, regTime)
-            VALUES (name_input, email_input, username_input, loginTime_input, regTime);
-            """
-
-            exe = con.execute(add_user)
+        with eng.begin() as con:
+            r1 = con.execute(Users.select())
+            con.execute(Users.insert(), {"name": name_input, "email": email_input, "username": username_input, "password": password_input,
+                                         "loginTime": loginTime_input, "regTime": regTime_input})
 
         flash('You are now registered and can log in', 'success')
 
         return redirect(url_for('login'))
     return render_template('register.html', form=form)
 
-# Route for login page
 
+# Route for login page
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -158,12 +155,12 @@ def login():
             find_user = """
             SELECT *
             FROM Users
-            WHERE username = usernameLogin;
+            WHERE username = """ + usernameLogin + """;
             """
 
             user = con.execute(find_user)
 
-        if user is None:
+        if user is None or user == "":
             error = 'Username Not Found'
             return render_template('login.html', error=error)
         else:
@@ -172,11 +169,11 @@ def login():
                 session['username'] = user['username']
                 session['userid'] = user['id']
 
-                now = datetime.now()
+                # now = datetime.now()
 
                 with eng.connect as con:
                     con.execute(
-                        "UPDATE Users SET loginTime = now WHERE id = user['id']")
+                        "UPDATE Users SET loginTime = GETDATE() WHERE id = user['id']")
 
                 flash('You are logged in', 'success')
                 return redirect(url_for('dashboard'))

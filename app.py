@@ -50,7 +50,6 @@ def create_tables():
         CREATE TABLE WatchList (
         id SERIAL,
         userID INT REFERENCES Users(id),
-        stockID INT REFERENCES Stocks(id),
         PRIMARY KEY (id)
         );"""
 

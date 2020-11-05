@@ -5,10 +5,12 @@ from datetime import datetime
 from functools import wraps
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import create_engine
+from sqlalchemy.sql import text
 
 
 from sqlalchemy import create_engine
 app = Flask(__name__)
+app.secret_key = "super secret key"
 
 db_addr = "postgres://"+"postgres"+":"+"whatevergoes"+"@" + \
     "database-1.ci1szttxojrb.us-east-1.rds.amazonaws.com"+":"+"5432"+"/"+"stockapp"
@@ -33,13 +35,13 @@ def create_tables():
         quantity INT NOT NULL,
         date TIMESTAMP NOT NULL,
         userId INT REFERENCES Users(id),
-        ticker CHAR REFERENCES Stocks(ticker),
+        ticker VARCHAR(225) REFERENCES Stocks(ticker),
         PRIMARY KEY (id)
         );"""
 
         create_stocks = """ 
         CREATE TABLE Stocks (
-        ticker CHAR NOT NULL,
+        ticker VARCHAR(225) NOT NULL,
         closePrice FLOAT NOT NULL,
         openPrice FLOAT NOT NULL,
         latestDate TIMESTAMP NOT NULL,
@@ -57,7 +59,7 @@ def create_tables():
         create_watchlist_to_stock = """ 
         CREATE TABLE watchlistToStock (
         watchListId INT REFERENCES WatchList(id),
-        ticker CHAR REFERENCES Stocks(ticker),
+        ticker VARCHAR(225) REFERENCES Stocks(ticker),
 
         PRIMARY KEY (watchListId, ticker)
         );"""
@@ -65,10 +67,10 @@ def create_tables():
         create_users = """ 
         CREATE TABLE Users (
         id SERIAL,
-        name CHAR NOT NULL,
-        email CHAR NOT NULL,
-        username CHAR NOT NULL,
-        password CHAR NOT NULL,
+        name VARCHAR(225) NOT NULL,
+        email VARCHAR(225) NOT NULL,
+        username VARCHAR(225) NOT NULL,
+        password VARCHAR(225) NOT NULL,
         loginTime TIMESTAMP NOT NULL,
         regTime TIMESTAMP NOT NULL,
         PRIMARY KEY (id)
@@ -131,10 +133,22 @@ def register():
         loginTime_input = datetime.now()
         regTime_input = datetime.now()
 
-        with eng.begin() as con:
-            r1 = con.execute(Users.select())
-            con.execute(Users.insert(), {"name": name_input, "email": email_input, "username": username_input, "password": password_input,
-                                         "loginTime": loginTime_input, "regTime": regTime_input})
+        data = {
+            "name" : name_input,
+            "email" : email_input,
+            "username" : username_input,
+            "password" : password_input,
+            "loginTime" : loginTime_input,
+            "regTime" : regTime_input
+        }
+
+        with eng.connect() as con:
+            add_user = text("""
+            INSERT INTO Users (name, email, username, password, loginTime, regTime)
+            VALUES (:name, :email, :username, :password, :loginTime, :regTime);
+            """)
+
+            exe = con.execute(add_user, **data)
 
         flash('You are now registered and can log in', 'success')
 

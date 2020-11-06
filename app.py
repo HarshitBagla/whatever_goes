@@ -150,6 +150,25 @@ def register():
 
             exe = con.execute(add_user, **data)
 
+        with eng.connect() as con:
+            find_user = """
+            SELECT *
+            FROM Users
+            WHERE username = '""" + str(username_input) + """';
+            """
+
+            user = con.execute(find_user)
+            user = user.first()
+
+        data = {
+            "userId": user[0]
+        }
+        with eng.connect() as con:
+            add_watchlist = text(
+                "INSERT INTO WatchList (userID) VALUES (:userId);")
+
+            exe = con.execute(add_watchlist, **data)
+
         flash('You are now registered and can log in', 'success')
 
         return redirect(url_for('login'))
@@ -176,6 +195,15 @@ def login():
             user = con.execute(find_user)
             user = user.first()
 
+        with eng.connect() as con:
+            find_watchlist = """
+                SELECT *
+                FROM WatchList
+                WHERE userID = """ + str(user[0]) + """;
+            """
+            watchlist = con.execute(find_watchlist)
+            watchlist = watchlist.first()
+
         if user[3] is None or user[3] == "":
             error = 'Username Not Found'
             return render_template('login.html', error=error)
@@ -184,6 +212,7 @@ def login():
                 session['logged_in'] = True
                 session['username'] = user[3]
                 session['userid'] = user[0]
+                session['watchlistid'] = watchlist[0]
 
                 # now = datetime.now()
 
@@ -242,6 +271,16 @@ def dashboard():
     # else:
     #     return render_template('dashboard.html', stocks=stocks)
     return render_template('dashboard.html')  # , stocks=stocks)
+
+# Route for logout
+
+
+@app.route('/logout')
+@is_logged_in
+def logout():
+    session.clear()
+    flash('You are now logged out', 'success')
+    return redirect(url_for('login'))
 
 
 if __name__ == '__main__':

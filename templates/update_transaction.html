@@ -1,0 +1,16 @@
+
+{% extends 'layout.html' %}
+
+{% block body %}
+    <h1>Add a Transaction</h1>
+    {% from "includes/_formhelpers.html" import render_field %}
+    <form action="" method="POST">
+        <div class="form-group">
+            {{render_field(form.buyPrice, class="form-control")}}
+            {{render_field(form.quantity, class="form-control")}}
+
+        </div>
+        <p><input type="submit" class="btn btn-primary btn-lg btn-block" value="Submit"></p>
+    </form>
+   
+{% endblock %}

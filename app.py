@@ -1,12 +1,12 @@
 from flask import Flask, render_template, flash, redirect, url_for, session, logging, request
-from wtforms import Form, StringField, TextAreaField, PasswordField, validators, IntegerField
+from wtforms import Form, StringField, TextAreaField, PasswordField, validators, IntegerField, DateField, DecimalField
 from passlib.hash import sha256_crypt
 from datetime import datetime
 from functools import wraps
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
-
+import sys
 
 from sqlalchemy import create_engine
 app = Flask(__name__)
@@ -321,6 +321,173 @@ def prices():
         prices = con.execute(searchticker)
         prices = prices.fetchall()
     return render_template('prices.html', prices=prices, form=form)
+
+@app.route('/transactions', methods=['GET', 'POST'])
+@is_logged_in
+def transactions():
+    form = SearchForm(request.form)
+    if request.method == 'POST' and form.validate():
+        ticker_input = form.ticker.data
+
+        with eng.connect() as con:
+            searchtransactions= """
+                SELECT *
+                FROM Transactions
+                WHERE ticker = '""" + str(ticker_input) + """' AND userId = """ + str(session['userid']) + """;
+            """
+
+            ts = con.execute(searchtransactions)
+            ts = ts.fetchall()
+
+        if len(ts) == 0:
+            error = 'No such transactions found. Try again'
+            with eng.connect() as con:
+                searchtransactions= """
+                SELECT *
+                FROM Transactions
+                WHERE userId = """ + str(session['userid']) + """;
+                """
+
+                ts = con.execute(searchtransactions)
+                ts = ts.fetchall()
+
+            return render_template('transactions.html', transactions=ts, form=form, error=error)
+        else:
+            flash('Here are your search results', 'success')
+            return render_template('transactions.html', transactions=ts, form=form)
+    with eng.connect() as con:
+        searchtransactions= """
+            SELECT *
+            FROM Transactions
+            WHERE userId = """ + str(session['userid']) + """;
+        """
+
+        ts = con.execute(searchtransactions)
+        ts = ts.fetchall()
+    return render_template('transactions.html', transactions=ts, form=form)
+
+
+class TransactionForm(Form):
+    buyPrice = DecimalField('Buy_Price', [validators.DataRequired()])
+    quantity = IntegerField('Quantity', [validators.DataRequired()])
+    # date = DateField('Date', [validators.DataRequired()])
+    ticker = StringField('Ticker', [validators.DataRequired()])
+
+
+@app.route('/add_transaction', methods=['GET', 'POST'])
+@is_logged_in
+def add_transaction():
+    form = TransactionForm(request.form)
+    if request.method == 'POST' and form.validate():
+        buyPrice = form.buyPrice.data
+        quantity = form.quantity.data
+        # date = form.date.data
+        ticker = form.ticker.data
+
+        data = {
+            "buyPrice": buyPrice,
+            "quantity": quantity,
+            "date": datetime.now(),
+            "ticker": ticker,
+            "userId" : session['userid']
+        }
+
+        with eng.connect() as con:
+            search_ticker= """
+                SELECT *
+                FROM Stocks
+                WHERE ticker = '""" + str(ticker) +"""';
+            """
+
+            s = con.execute(search_ticker)
+            s = s.fetchall()
+
+        if len(s) == 0:
+            error = 'No such ticker found in our data base. Try again'
+
+            return render_template('add_transaction.html', form=form, error=error)
+        else:
+            # print(buyPrice, file=sys.stderr)
+            with eng.connect() as con:
+                insert_t = text("""
+                INSERT INTO Transactions (buyPrice, quantity, date, userId, ticker)
+                VALUES (:buyPrice, :quantity, :date, :userId, :ticker);
+                """)
+
+                ts = con.execute(insert_t, **data)
+                # ts = ts.fetchall()
+
+        
+            flash('Your Transaction has been added. Go to the Transaction tab to view it.', 'success')
+            return render_template('add_transaction.html', form=form)
+    
+    return render_template('add_transaction.html', form=form)
+
+@app.route('/delete_transaction/<int:id>', methods=['GET', 'POST'])
+@is_logged_in
+def delete_transaction(id):
+    if request.method:
+
+        with eng.connect() as con:
+            search_ticker= """
+                DELETE FROM Transactions
+                WHERE id = """ + str(id) +""";
+            """
+
+            s = con.execute(search_ticker)
+        flash('Your Transaction has been deleted.', 'success')
+
+    
+    return redirect(url_for('transactions'))
+
+class UpdateForm(Form):
+    buyPrice = DecimalField('Buy_Price', [validators.DataRequired()])
+    quantity = IntegerField('Quantity', [validators.DataRequired()])
+    # date = DateField('Date', [validators.DataRequired()])
+
+@app.route('/update_transaction/<int:id>', methods=['GET', 'POST'])
+@is_logged_in
+def update_transaction(id):
+    form = UpdateForm(request.form)
+    if request.method == 'POST' and form.validate():
+        buyPrice = form.buyPrice.data
+        quantity = form.quantity.data
+
+        data = {
+            "buyPrice": buyPrice,
+            "quantity": quantity,
+        }
+        with eng.connect() as con:
+            update_t= """
+                UPDATE Transactions
+                SET buyPrice = """ + str(buyPrice) + """, quantity = """ + str(quantity) + """
+                WHERE id = """ + str(id) +""";
+            """
+            s = con.execute(update_t)
+
+        flash('Your Transaction has been updated.', 'success')
+        return redirect(url_for('transactions'))
+    
+    return render_template('update_transaction.html', form=form)
+
+# @app.route('/update_transaction/<int:id>', methods=['POST'])
+# @is_logged_in
+# def update_transaction(id):
+#     if request.method == 'POST':
+
+#         with eng.connect() as con:
+#             search_ticker= """
+#                 UPDATE Transactions
+#                 SET Stocks
+#                 WHERE ticker = '""" + str(ticker) +"""';
+#             """
+
+#             s = con.execute(search_ticker)
+#             s = s.fetchall()
+#             flash('Your Transaction has been updated.', 'success')
+
+    
+#     return redirect(url_for('transactions'))
 
 # Route for logout
 

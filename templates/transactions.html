@@ -1,0 +1,32 @@
+
+{% extends 'layout.html' %}
+
+{% block body %}
+    <h1>Transactions</h1>
+    {% from "includes/_formhelpers.html" import render_field %}
+    <form action="" method="POST">
+        <div class="form-group">
+            {{render_field(form.ticker, class="form-control")}}
+        </div>
+        <p><input type="submit" class="btn btn-primary btn-lg btn-block" value="Submit"></p>
+    </form>
+    <table class="table table-striped">
+        <tr>
+            <th>Ticker</th> 
+            <th>Buy Price</th>
+            <th>Quantity</th>
+            <th>Date</th>
+            <th></th>
+        </tr>
+        {% for t in transactions %}
+        <tr>
+            <td>{{t[5]}}</td> 
+            <td>{{t[1]}}</td>
+            <td>{{t[2]}}</td>
+            <td>{{t[3]}}</td>
+            <td><a href="update_transaction/{{t[0]}}" class="btn btn-primary" role="button">Update</a></td>
+            <td><a href="delete_transaction/{{t[0]}}" class="btn btn-primary" role="button">Delete</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+{% endblock %}

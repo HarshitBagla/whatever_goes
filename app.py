@@ -129,17 +129,17 @@ def register():
         name_input = form.name.data
         email_input = form.email.data
         username_input = form.username.data
-        password_input = sha256_crypt.encrypt(str(form.password.data))
+        password_input = form.password.data
         loginTime_input = datetime.now()
         regTime_input = datetime.now()
 
         data = {
-            "name" : name_input,
-            "email" : email_input,
-            "username" : username_input,
-            "password" : password_input,
-            "loginTime" : loginTime_input,
-            "regTime" : regTime_input
+            "name": name_input,
+            "email": email_input,
+            "username": username_input,
+            "password": password_input,
+            "loginTime": loginTime_input,
+            "regTime": regTime_input
         }
 
         with eng.connect() as con:
@@ -164,29 +164,32 @@ def login():
         usernameLogin = request.form['username']
         password_candidate = request.form['password']
 
-        with eng.connect as con:
+        user = 0
+
+        with eng.connect() as con:
             find_user = """
             SELECT *
             FROM Users
-            WHERE username = """ + usernameLogin + """;
+            WHERE username = '""" + str(usernameLogin) + """';
             """
 
             user = con.execute(find_user)
+            user = user.first()
 
-        if user is None or user == "":
+        if user[3] is None or user[3] == "":
             error = 'Username Not Found'
             return render_template('login.html', error=error)
         else:
-            if sha256_crypt.verify(password_candidate, user.password):
+            if password_candidate == user[4]:
                 session['logged_in'] = True
-                session['username'] = user['username']
-                session['userid'] = user['id']
+                session['username'] = user[3]
+                session['userid'] = user[0]
 
                 # now = datetime.now()
 
-                with eng.connect as con:
-                    con.execute(
-                        "UPDATE Users SET loginTime = GETDATE() WHERE id = user['id']")
+                # with eng.connect() as con:
+                #     con.execute(
+                #         "UPDATE Users SET loginTime = "+str(now)[:19]+"WHERE id = "+str(user[0])+";")
 
                 flash('You are logged in', 'success')
                 return redirect(url_for('dashboard'))
@@ -203,42 +206,42 @@ def login():
 @is_logged_in
 def dashboard():
 
-    with eng.connect as con:
-        watchlistitem = """
-            SELECT *
-            FROM WatchList
-            WHERE id = session['user_id']
-        """
+    # with eng.connect as con:
+    #     watchlistitem = """
+    #         SELECT *
+    #         FROM WatchList
+    #         WHERE id = """+session['user_id']+""";
+    #     """
 
-        userwatchlist = con.execute(watchlistitem)
+    #     userwatchlist = con.execute(watchlistitem)
 
     # userwatchlist = WatchList.query.filter_by(user_id = session['userid']).all()
-    stocks = []
-    # details = []
+    # stocks = []
+    # # details = []
 
-    for item in userwatchlist:
-        with eng.connect as con:
-            comp = """
-                SELECT *
-                FROM Stocks
-                WHERE id = item['stockID']
-            """
+    # for item in userwatchlist:
+    #     with eng.connect as con:
+    #         comp = """
+    #             SELECT *
+    #             FROM Stocks
+    #             WHERE id = item['stockID']
+    #         """
 
-            addstock = con.execute(comp)
-        # addstock = StockInfo.query.filter_by(id=item.stockinfo_id).first()
-            stocks.append(addstock)
+    #         addstock = con.execute(comp)
+    #     # addstock = StockInfo.query.filter_by(id=item.stockinfo_id).first()
+    #         stocks.append(addstock)
 
-    # for item in stocks:
-    #     addDetails = StockPriceDetails.query.filter_by(
-    #         stock_id=item.id).first()
-    #     details.append(addDetails)
+    # # for item in stocks:
+    # #     addDetails = StockPriceDetails.query.filter_by(
+    # #         stock_id=item.id).first()
+    # #     details.append(addDetails)
 
-    if len(stocks) == 0:
-        error = 'You are not tracking any stocks'
-        return render_template('dashboard.html', error=error, stocks=stocks)
-    else:
-        return render_template('dashboard.html', stocks=stocks)
-    return render_template('dashboard.html', stocks=stocks)
+    # if len(stocks) == 0:
+    #     error = 'You are not tracking any stocks'
+    #     return render_template('dashboard.html', error=error, stocks=stocks)
+    # else:
+    #     return render_template('dashboard.html', stocks=stocks)
+    return render_template('dashboard.html')  # , stocks=stocks)
 
 
 if __name__ == '__main__':

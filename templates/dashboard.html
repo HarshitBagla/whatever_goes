@@ -10,10 +10,14 @@
             <th>Last Update</th>
             <th></th>
         </tr>
-        <!-- {% for stock in stocks %}
+        {% for stock in stocks %}
             <tr>
-                
+                <td>{{stock[0]}}</td>
+                <td>{{stock[1]}}</td>
+                <td>{{stock[2]}}</td>
+                <td>{{stock[3]}}</td>
+                <td><a href="untrack/{{stock[0]}}" class="btn btn-danger" role="button">Untrack</a></td>
             </tr>
-        {% endfor %} -->
+        {% endfor %}
     </table>
 {% endblock %}

@@ -235,42 +235,36 @@ def login():
 @is_logged_in
 def dashboard():
 
-    # with eng.connect as con:
-    #     watchlistitem = """
-    #         SELECT *
-    #         FROM WatchList
-    #         WHERE id = """+session['user_id']+""";
-    #     """
+    with eng.connect() as con:
+        watchlistitem = """
+            SELECT *
+            FROM watchlistToStock
+            WHERE watchListId = """+str(session['watchlistid'])+""";
+        """
 
-    #     userwatchlist = con.execute(watchlistitem)
+        userwatchlist = con.execute(watchlistitem)
+        userwatchlist = userwatchlist.fetchall()
 
-    # userwatchlist = WatchList.query.filter_by(user_id = session['userid']).all()
-    # stocks = []
-    # # details = []
+    stocks = []
 
-    # for item in userwatchlist:
-    #     with eng.connect as con:
-    #         comp = """
-    #             SELECT *
-    #             FROM Stocks
-    #             WHERE id = item['stockID']
-    #         """
+    for item in userwatchlist:
+        with eng.connect() as con:
+            comp = """
+                SELECT *
+                FROM Stocks
+                WHERE ticker = '"""+str(item[1])+"""';
+            """
 
-    #         addstock = con.execute(comp)
-    #     # addstock = StockInfo.query.filter_by(id=item.stockinfo_id).first()
-    #         stocks.append(addstock)
+            addstock = con.execute(comp)
+            addstock = addstock.first()
+        stocks.append(addstock)
 
-    # # for item in stocks:
-    # #     addDetails = StockPriceDetails.query.filter_by(
-    # #         stock_id=item.id).first()
-    # #     details.append(addDetails)
-
-    # if len(stocks) == 0:
-    #     error = 'You are not tracking any stocks'
-    #     return render_template('dashboard.html', error=error, stocks=stocks)
-    # else:
-    #     return render_template('dashboard.html', stocks=stocks)
-    return render_template('dashboard.html')  # , stocks=stocks)
+    if len(stocks) == 0:
+        error = 'You are not tracking any stocks'
+        return render_template('dashboard.html', error=error, stocks=stocks)
+    else:
+        return render_template('dashboard.html', stocks=stocks)
+    return render_template('dashboard.html', stocks=stocks)
 
 # Search Form
 
@@ -322,6 +316,57 @@ def prices():
         prices = prices.fetchall()
     return render_template('prices.html', prices=prices, form=form)
 
+# For Tracking a Stock
+
+
+@app.route('/track/<stockid>/')
+def track(stockid):
+    with eng.connect() as con:
+        check = """
+            SELECT *
+            FROM watchlistToStock
+            WHERE watchListId = """ + str(session['watchlistid']) + """ AND ticker = '""" + str(stockid) + """';
+        """
+
+        checking = con.execute(check)
+        checking = checking.first()
+
+    if checking == None:
+        data = {
+            "watchListId": session['watchlistid'],
+            "ticker": stockid
+        }
+        with eng.connect() as con:
+            inserstock = text(
+                "INSERT INTO watchlistToStock (watchListId, ticker) VALUES (:watchListId, :ticker);")
+
+            checking = con.execute(inserstock, **data)
+
+        flash('Stock is now added to your watchlist', 'success')
+    else:
+        flash('Stock already added')
+
+    return redirect(url_for('dashboard'))
+
+# For Untracking the stock
+
+
+@app.route('/untrack/<stockid>/')
+def untrack(stockid):
+    with eng.connect() as con:
+        check = """
+            DELETE
+            FROM watchlistToStock
+            WHERE watchListId = """ + str(session['watchlistid']) + """ AND ticker = '""" + str(stockid) + """';
+        """
+
+        checking = con.execute(check)
+
+    flash('Stock removed from watchlist', 'success')
+
+    return redirect(url_for('dashboard'))
+
+
 @app.route('/transactions', methods=['GET', 'POST'])
 @is_logged_in
 def transactions():
@@ -330,7 +375,7 @@ def transactions():
         ticker_input = form.ticker.data
 
         with eng.connect() as con:
-            searchtransactions= """
+            searchtransactions = """
                 SELECT *
                 FROM Transactions
                 WHERE ticker = '""" + str(ticker_input) + """' AND userId = """ + str(session['userid']) + """;
@@ -342,7 +387,7 @@ def transactions():
         if len(ts) == 0:
             error = 'No such transactions found. Try again'
             with eng.connect() as con:
-                searchtransactions= """
+                searchtransactions = """
                 SELECT *
                 FROM Transactions
                 WHERE userId = """ + str(session['userid']) + """;
@@ -356,7 +401,7 @@ def transactions():
             flash('Here are your search results', 'success')
             return render_template('transactions.html', transactions=ts, form=form)
     with eng.connect() as con:
-        searchtransactions= """
+        searchtransactions = """
             SELECT *
             FROM Transactions
             WHERE userId = """ + str(session['userid']) + """;
@@ -389,14 +434,14 @@ def add_transaction():
             "quantity": quantity,
             "date": datetime.now(),
             "ticker": ticker,
-            "userId" : session['userid']
+            "userId": session['userid']
         }
 
         with eng.connect() as con:
-            search_ticker= """
+            search_ticker = """
                 SELECT *
                 FROM Stocks
-                WHERE ticker = '""" + str(ticker) +"""';
+                WHERE ticker = '""" + str(ticker) + """';
             """
 
             s = con.execute(search_ticker)
@@ -417,11 +462,12 @@ def add_transaction():
                 ts = con.execute(insert_t, **data)
                 # ts = ts.fetchall()
 
-        
-            flash('Your Transaction has been added. Go to the Transaction tab to view it.', 'success')
+            flash(
+                'Your Transaction has been added. Go to the Transaction tab to view it.', 'success')
             return render_template('add_transaction.html', form=form)
-    
+
     return render_template('add_transaction.html', form=form)
+
 
 @app.route('/delete_transaction/<int:id>', methods=['GET', 'POST'])
 @is_logged_in
@@ -429,21 +475,22 @@ def delete_transaction(id):
     if request.method:
 
         with eng.connect() as con:
-            search_ticker= """
+            search_ticker = """
                 DELETE FROM Transactions
-                WHERE id = """ + str(id) +""";
+                WHERE id = """ + str(id) + """;
             """
 
             s = con.execute(search_ticker)
         flash('Your Transaction has been deleted.', 'success')
 
-    
     return redirect(url_for('transactions'))
+
 
 class UpdateForm(Form):
     buyPrice = DecimalField('Buy_Price', [validators.DataRequired()])
     quantity = IntegerField('Quantity', [validators.DataRequired()])
     # date = DateField('Date', [validators.DataRequired()])
+
 
 @app.route('/update_transaction/<int:id>', methods=['GET', 'POST'])
 @is_logged_in
@@ -458,16 +505,16 @@ def update_transaction(id):
             "quantity": quantity,
         }
         with eng.connect() as con:
-            update_t= """
+            update_t = """
                 UPDATE Transactions
                 SET buyPrice = """ + str(buyPrice) + """, quantity = """ + str(quantity) + """
-                WHERE id = """ + str(id) +""";
+                WHERE id = """ + str(id) + """;
             """
             s = con.execute(update_t)
 
         flash('Your Transaction has been updated.', 'success')
         return redirect(url_for('transactions'))
-    
+
     return render_template('update_transaction.html', form=form)
 
 # @app.route('/update_transaction/<int:id>', methods=['POST'])
@@ -486,7 +533,7 @@ def update_transaction(id):
 #             s = s.fetchall()
 #             flash('Your Transaction has been updated.', 'success')
 
-    
+
 #     return redirect(url_for('transactions'))
 
 # Route for logout

@@ -272,6 +272,56 @@ def dashboard():
     #     return render_template('dashboard.html', stocks=stocks)
     return render_template('dashboard.html')  # , stocks=stocks)
 
+# Search Form
+
+
+class SearchForm(Form):
+    ticker = StringField('Ticker', [validators.DataRequired()])
+
+# Route for Price page for top 10 price change in the market
+
+
+@app.route('/prices', methods=['GET', 'POST'])
+@is_logged_in
+def prices():
+    form = SearchForm(request.form)
+    if request.method == 'POST' and form.validate():
+        ticker_input = form.ticker.data
+
+        with eng.connect() as con:
+            searchticker = """
+                SELECT *
+                FROM Stocks
+                WHERE ticker = '""" + str(ticker_input) + """';
+            """
+
+            prices = con.execute(searchticker)
+            prices = prices.fetchall()
+
+        if len(prices) == 0:
+            error = 'No such company found. Try again'
+            with eng.connect() as con:
+                searchticker = """
+                    SELECT *
+                    FROM Stocks;
+                """
+
+                prices = con.execute(searchticker)
+                prices = prices.fetchall()
+            return render_template('prices.html', prices=prices, form=form, error=error)
+        else:
+            flash('Here are your search results', 'success')
+            return render_template('prices.html', prices=prices, form=form)
+    with eng.connect() as con:
+        searchticker = """
+                SELECT *
+                FROM Stocks;
+            """
+
+        prices = con.execute(searchticker)
+        prices = prices.fetchall()
+    return render_template('prices.html', prices=prices, form=form)
+
 # Route for logout
 
 

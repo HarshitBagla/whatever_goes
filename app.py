@@ -594,7 +594,7 @@ def analysis():
             sm = sum(trim)
             data_10d.append(sm/10)
             idx += 1
-        #6mo
+        #2mo
         hist4mo = data.history(period="4mo")["Close"]
         data_2mo = []
         idx = 60
@@ -649,6 +649,9 @@ def analysis():
 
         axis.legend()
         axis.set_title('Previous Buying/Selling Points based on SMA Crossover')
+
+        #Source: https://gitlab.com/snippets/1924163
+        
         # Convert plot to PNG image
         pngImage = io.BytesIO()
         FigureCanvas(fig).print_png(pngImage)

@@ -1,0 +1,35 @@
+
+{% extends 'layout.html' %}
+
+{% block body %}
+    <h1>Analysis</h1>
+
+    <h3>Previous View of SMA Strategy on this Stock </h3>
+    <img src="{{image}}">
+    <h4>Try another ticker</h4>
+    {% from "includes/_formhelpers.html" import render_field %}
+    <form action="" method="POST">
+        <div class="form-group">
+            {{render_field(form.ticker, class="form-control")}}
+        </div>
+        <p><input type="submit" class="btn btn-primary btn-lg btn-block" value="Submit"></p>
+    </form>
+    <!-- <table class="table table-striped">
+        <tr>
+            <th>Ticker</th>
+            <th>Close Price</th>
+            <th>Open Price</th>
+            <th>Last Update</th>
+            <th></th>
+        </tr>
+        {% for price in prices %}
+        <tr>
+            <td>{{price[0]}}</td>
+            <td>{{price[1]}}</td>
+            <td>{{price[2]}}</td>
+            <td>{{price[3]}}</td>
+            <td><a href="track/{{price[0]}}" class="btn btn-primary" role="button">Track</a></td>
+        </tr>
+        {% endfor %}
+    </table> -->
+{% endblock %}

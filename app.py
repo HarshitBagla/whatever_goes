@@ -7,6 +7,13 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
 import sys
+import requests
+from lxml import html
+import pandas as pd
+import yfinance as yf
+import numpy as np 
+import matplotlib.pyplot as plt
+from pandas import DataFrame
 
 from sqlalchemy import create_engine
 app = Flask(__name__)
@@ -517,24 +524,143 @@ def update_transaction(id):
 
     return render_template('update_transaction.html', form=form)
 
-# @app.route('/update_transaction/<int:id>', methods=['POST'])
-# @is_logged_in
-# def update_transaction(id):
-#     if request.method == 'POST':
+@app.route('/view_gainers', methods=['POST', 'GET'])
+@is_logged_in
+def view_gainers():
+    ret_list = []
+    r = requests.get("https://finance.yahoo.com/gainers")
+    parser = html.fromstring(r.text)
+    rows = parser.xpath('//tr[@class="simpTblRow Bgc($hoverBgColor):h BdB Bdbc($seperatorColor) Bdbc($tableBorderBlue):h H(32px) Bgc($lv2BgColor) "]')
+    rows2 = parser.xpath('//tr[@class="simpTblRow Bgc($hoverBgColor):h BdB Bdbc($seperatorColor) Bdbc($tableBorderBlue):h H(32px) Bgc($lv1BgColor) "]')
+    i = 0
+    j = 0
+    while i < len(rows) and j < len(rows2):
+        if (i < len(rows)):
+            elem = rows[i].xpath('.//a/text()')
+            volumeRow = rows[i].xpath('//td[@aria-label="Volume"]')
+            vol = volumeRow[(i* 2)].xpath('.//span[@class="Trsdu(0.3s) "]/text()')
+            if vol[0].find('M') >= 0:
+                ret_list.append([elem[0], vol[0]])
+            i += 1
+        if (j < len(rows)):
+            elem = rows2[j].xpath('.//a/text()')
+            volumeRow = rows2[j].xpath('//td[@aria-label="Volume"]')
+            vol = volumeRow[(j * 2) + 1].xpath('.//span[@class="Trsdu(0.3s) "]/text()')
 
-#         with eng.connect() as con:
-#             search_ticker= """
-#                 UPDATE Transactions
-#                 SET Stocks
-#                 WHERE ticker = '""" + str(ticker) +"""';
-#             """
+            if vol[0].find('M') >= 0:
+                # print(vol[0])
+                ret_list.append([elem[0], vol[0]])
+            j += 1
+    return render_template('view_gainers.html', data=ret_list)
 
-#             s = con.execute(search_ticker)
-#             s = s.fetchall()
-#             flash('Your Transaction has been updated.', 'success')
+class ShouldBuy(Form):
+    ticker = StringField('ticker', [validators.DataRequired()])
 
 
-#     return redirect(url_for('transactions'))
+from matplotlib.figure import Figure
+import io
+import base64
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+
+@app.route('/analysis', methods=['GET', 'POST'])
+@is_logged_in
+def analysis():
+    form = ShouldBuy(request.form)
+    if request.method == 'POST' and form.validate():
+        t_data = form.ticker.data
+
+        data = yf.Ticker(t_data)
+        hist1mo = data.history(period="1mo")["Close"]
+        hist6mo = data.history(period="6mo")["Close"]
+
+        sma1mo = sum(hist1mo)/30
+        sma6mo = sum(hist6mo)/180
+
+
+        if sma1mo > sma6mo:
+            flash("You should BUY based on Simple Moving Averages Cross Strategy", 'success')
+        else:
+            flash("You should SELL based on Simple Moving Averages Cross Strategy", 'error')
+        
+        #get 1mo SMA and 6mo SMA data lines
+        data = yf.Ticker(t_data)
+
+        #10d
+        hist20d = data.history(period="2mo")["Close"]
+        data_10d = []
+        idx = 10
+        for x in range(30):
+            trim = hist20d[idx-10:idx]
+            sm = sum(trim)
+            data_10d.append(sm/10)
+            idx += 1
+        #6mo
+        hist4mo = data.history(period="4mo")["Close"]
+        data_2mo = []
+        idx = 60
+        for x in range(30):
+            trim = hist4mo[idx-60:idx]
+            sm = sum(trim)
+            data_2mo.append(sm/60)
+            idx += 1
+            
+            #When were good buy points
+
+        data = yf.Ticker(t_data)
+        hist1mo = data.history(period="1mo")["Close"]
+
+        disp = hist1mo.to_frame()
+        trim_10d = data_10d[30-len(hist1mo):]
+        disp["10d-SMA"] = data_10d[30-len(hist1mo):]
+
+        trim_2mo = data_2mo[-len(hist1mo):]
+        disp["2mo-SMA"] = trim_2mo
+
+        indexs=disp.index.values
+        # print(x)
+
+        #add markers
+        markers = [0] * len(trim_2mo)
+
+        for i in range(len(trim_2mo)):
+            if trim_2mo[i] > trim_10d[i] and trim_2mo[i-1] <= trim_10d[i-1]:
+                markers[i] = -1
+            elif trim_2mo[i] < trim_10d[i] and trim_2mo[i-1] >= trim_10d[i-1]:
+                markers[i] = 1
+            else:
+                markers[i] = 0
+        markers_sell = [x for x in range(len(markers)) if markers[x] == -1]
+        markers_buy = [x for x in range(len(markers)) if markers[x] == 1]
+        
+        #plot prices, SMA, and buy/sell points
+        fig = Figure(figsize=(15,8))
+        axis = fig.add_subplot(1, 1, 1)
+
+        # axis.figure(figsize = (15,8))
+        axis.plot(indexs, disp["Close"],'-rv',markevery =markers_sell, markersize=20, label="Sell Here")
+        axis.plot(indexs, disp["Close"], '-g^',markevery =markers_buy, markersize=20, label="Buy Here")
+        axis.plot(indexs, disp["Close"], color="purple")
+
+        axis.plot(disp["10d-SMA"], label="10d-SMA")
+        axis.plot(disp["2mo-SMA"], label="2mo-SMA")
+
+        axis.grid()
+        axis.set_ylabel("Price")
+
+        axis.legend()
+        axis.set_title('Previous Buying/Selling Points based on SMA Crossover')
+        # Convert plot to PNG image
+        pngImage = io.BytesIO()
+        FigureCanvas(fig).print_png(pngImage)
+        
+        # Encode PNG image to base64 string
+        pngImageB64String = "data:image/png;base64,"
+        pngImageB64String += base64.b64encode(pngImage.getvalue()).decode('utf8')
+
+
+        return render_template('analysis2.html', form=form, image=pngImageB64String)
+
+    return render_template('analysis.html', form=form)
 
 # Route for logout
 

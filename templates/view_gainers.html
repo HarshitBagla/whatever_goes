@@ -1,0 +1,21 @@
+
+{% extends 'layout.html' %}
+
+{% block body %}
+    <h1>Top Gaining Stocks with Substantial Volume</h1>
+    {% from "includes/_formhelpers.html" import render_field %}
+   
+    <table class="table table-striped">
+        <tr>
+            <th>Ticker</th> 
+            <th>Volume</th>
+            <th></th>
+        </tr>
+        {% for t in data %}
+        <tr>
+            <td>{{t[0]}}</td> 
+            <td>{{t[1]}}</td>
+        </tr>
+        {% endfor %}
+    </table>
+{% endblock %}

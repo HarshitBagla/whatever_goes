@@ -286,8 +286,10 @@ class SearchForm(Form):
 @is_logged_in
 def prices():
     form = SearchForm(request.form)
+    search = False
     if request.method == 'POST' and form.validate():
         ticker_input = form.ticker.data
+        search = True
 
         with eng.connect() as con:
             searchticker = """
@@ -298,6 +300,17 @@ def prices():
 
             prices = con.execute(searchticker)
             prices = prices.fetchall()
+        
+        with eng.connect() as con:
+            countusers = """
+                SELECT t.ticker, count(DISTINCT u.id) as total
+                FROM Transactions t JOIN Users u ON t.userId=u.id
+                WHERE ticker = '""" + str(ticker_input) + """'
+                GROUP BY t.ticker;
+            """
+
+            numusers = con.execute(countusers)
+            numusers = numusers.first()
 
         if len(prices) == 0:
             error = 'No such company found. Try again'
@@ -309,10 +322,11 @@ def prices():
 
                 prices = con.execute(searchticker)
                 prices = prices.fetchall()
-            return render_template('prices.html', prices=prices, form=form, error=error)
+            search = False
+            return render_template('prices.html', prices=prices, search=search, form=form, error=error)
         else:
             flash('Here are your search results', 'success')
-            return render_template('prices.html', prices=prices, form=form)
+            return render_template('prices.html', prices=prices, search=search,  numusers=numusers, form=form)
     with eng.connect() as con:
         searchticker = """
                 SELECT *
@@ -321,7 +335,7 @@ def prices():
 
         prices = con.execute(searchticker)
         prices = prices.fetchall()
-    return render_template('prices.html', prices=prices, form=form)
+    return render_template('prices.html', prices=prices, search=search, form=form)
 
 # For Tracking a Stock
 

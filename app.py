@@ -541,6 +541,31 @@ def update_transaction(id):
 @app.route('/view_gainers', methods=['POST', 'GET'])
 @is_logged_in
 def view_gainers():
+    currentTime = datetime.now()
+    ct_str = currentTime.strftime("%Y-%m-%d")
+    found = False
+    res = None
+
+    with eng.connect() as con:
+        search = """
+            SELECT ticker, volume
+            FROM stock_gainers
+            WHERE DATE(accesstime) = '""" + ct_str + """';
+        """
+
+        s = con.execute(search)
+        s = s.fetchall()
+        if len(s) != 0:
+            found = True
+            res = s
+    ret_list = []
+    if found:
+        print("using database stored gain values")
+        # print(res[0][0])
+        # for x in res:
+        #     ret_list.append([x[]])
+        return render_template('view_gainers.html', data=res)
+    
     ret_list = []
     r = requests.get("https://finance.yahoo.com/gainers")
     parser = html.fromstring(r.text)
@@ -565,6 +590,23 @@ def view_gainers():
                 # print(vol[0])
                 ret_list.append([elem[0], vol[0]])
             j += 1
+
+    for x in ret_list:
+
+        data = {
+            "ticker": x[0],
+            "volume": x[1],
+            "accessTime": datetime.now(),
+        }
+
+        with eng.connect() as con:
+            add_user = text("""
+            INSERT INTO stock_gainers (ticker, volume, accessTime)
+            VALUES (:ticker, :volume, :accessTime);
+            """)
+
+            exe = con.execute(add_user, **data)
+    
     return render_template('view_gainers.html', data=ret_list)
 
 class ShouldBuy(Form):
@@ -580,6 +622,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 @is_logged_in
 def analysis():
     form = ShouldBuy(request.form)
+
     if request.method == 'POST' and form.validate():
         t_data = form.ticker.data
 
@@ -595,6 +638,34 @@ def analysis():
             flash("You should BUY based on Simple Moving Averages Cross Strategy", 'success')
         else:
             flash("You should SELL based on Simple Moving Averages Cross Strategy", 'error')
+        
+
+        #check if analysis run on same day and ticker already stored in database
+        currentTime = datetime.now()
+        ct_str = currentTime.strftime("%Y-%m-%d")
+        found = False
+        res = None
+
+        with eng.connect() as con:
+            search = """
+                SELECT img
+                FROM Images
+                WHERE ticker = '""" + str(t_data) + """' AND DATE(accesstime) = '""" + ct_str + """';
+            """
+
+            s = con.execute(search)
+            s = s.fetchall()
+
+            if len(s) != 0:
+                found = True
+                res = s
+        
+        if found:
+            print("using database stored image")
+            # print(res[0][0])
+            return render_template('analysis2.html', form=form, image=res[0][0])
+
+        #if not found run anaylsis and store in databse
         
         #get 1mo SMA and 6mo SMA data lines
         data = yf.Ticker(t_data)
@@ -669,11 +740,25 @@ def analysis():
         # Convert plot to PNG image
         pngImage = io.BytesIO()
         FigureCanvas(fig).print_png(pngImage)
-        
+
         # Encode PNG image to base64 string
         pngImageB64String = "data:image/png;base64,"
         pngImageB64String += base64.b64encode(pngImage.getvalue()).decode('utf8')
+        # print(pngImageB64String)
 
+        data = {
+            "ticker": t_data,
+            "img": pngImageB64String,
+            "accessTime": datetime.now(),
+        }
+
+        with eng.connect() as con:
+            add_user = text("""
+            INSERT INTO Images (ticker, img, accessTime)
+            VALUES (:ticker, :img, :accessTime);
+            """)
+
+            exe = con.execute(add_user, **data)
 
         return render_template('analysis2.html', form=form, image=pngImageB64String)
 

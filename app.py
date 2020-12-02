@@ -16,8 +16,8 @@ import matplotlib.pyplot as plt
 from pandas import DataFrame
 from pymongo import MongoClient
 import time
-from datetime import date
 from datetime import timedelta
+from datetime import date
 
 from sqlalchemy import create_engine
 app = Flask(__name__)
@@ -32,6 +32,93 @@ eng = create_engine(db_addr)
 # Index Page
 @app.route('/')
 def index():
+    # ADV2 Part 1 - check to make sure all stocks are updated on a daily basis
+    try:
+        # declare the db
+        cluster = MongoClient("mongodb+srv://root:whatevergoes@stockcluster."
+                              "7jlai.mongodb.net/stocks?retryWrites=true&w=majority")
+
+        # declare db to be used for mongo queries
+        db = cluster['stocks']
+
+        # get the S&G500 codes
+        symbols = pd.read_excel('S&G500.xlsx').values.reshape(1, 504).tolist()[0]
+
+        tempDate = db['stocks'].find_one({})['date']
+        if tempDate != date.today().strftime('%Y-%m-%d'):
+            today = date.today()
+            yesterday = today - timedelta(days=1)
+            # first clear the data
+            results = db['stocks'].delete_many({})
+            # fill in the new data
+            for symbol in symbols:
+                ticker = yf.download(symbol, start=yesterday.strftime('%Y-%m-%d'), end=today.strftime('%Y-%m-%d'))
+
+                try:
+                    price = round(ticker.iloc[0]['Adj Close'], 2)
+                except:
+                    # cool down to prevent api crash
+                    time.sleep(10)
+                    continue
+
+                db['stocks'].insert_one({"symbol": symbol, "price": price, "date": today.strftime('%Y-%m-%d')})
+                print(symbol)
+
+            results = db['stocks'].find({})
+            size = 0
+            tempStocks = {}
+
+            for result in results:
+                tempStocks[result["symbol"]] = result["price"]
+
+            print(results)
+
+            with eng.connect() as con:
+                for symbol in symbols:
+                    try:
+                        searchticker = """
+                                    UPDATE STOCKS 
+                                    SET closePrice = """ + str(tempStocks[symbol]) + """ 
+                                    WHERE ticker = '""" + symbol + """';
+                                """
+
+                        prices = con.execute(searchticker)
+                    except:
+                        continue
+    except:
+        print("Access to mongodb denied!")
+    #
+    # results = db['stocks'].find({})
+    # tempStocks = {}
+    #
+    # for result in results:
+    #     tempStocks[result["symbol"]] = result["price"]
+    #
+    # skipStocks = ['AAPL', 'QQQ', 'SPY', 'NET', 'DOCU', 'WORK', 'MFST', 'JPM', 'DIS', 'BA', 'RTX', 'AMD', 'GS']
+    #
+    # for symbol in symbols:
+    #     if symbol in skipStocks:
+    #         continue
+    #     try:
+    #         with eng.connect() as con:
+    #             data = {
+    #                 "ticker": symbol,
+    #                 "closePrice": tempStocks[symbol],
+    #                 "openPrice": 100,
+    #                 "latestDate": datetime.now()
+    #             }
+    #
+    #             searchticker = text("""
+    #                         INSERT INTO STOCKS (ticker, closePrice, openPrice, latestDate)
+    #                         VALUES (:ticker, :closePrice, :openPrice, :latestDate);
+    #                     """)
+    #
+    #             prices = con.execute(searchticker, **data)
+    #         print('reached')
+    #     except:
+    #         print('not reached')
+    #         continue
+
     return render_template('index.html')
 
 
@@ -781,35 +868,3 @@ def logout():
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-    # ADV2 Part 1 - check to make sure all stocks are updated on a daily basis
-
-    # declare the db
-    cluster = MongoClient("mongodb+srv://root:whatevergoes@stockcluster."
-                          "7jlai.mongodb.net/stocks?retryWrites=true&w=majority")
-
-    # declare db to be used for mongo queries
-    db = cluster['stocks']
-
-    # get the S&G500 codes
-    symbols = pd.read_excel('S&G500.xlsx').values.reshape(1, 504).tolist()[0]
-
-    tempDate = db['stocks'].find_one({})['date']
-    if tempDate != date.today().strftime('%Y-%m-%d'):
-        today = date.today()
-        yesterday = today - timedelta(days=1)
-        # first clear the data
-        results = db['stocks'].delete_many({})
-        # fill in the new data
-        for symbol in symbols:
-            ticker = yf.download(symbol, start=yesterday.strftime('%Y-%m-%d'), end=today.strftime('%Y-%m-%d'))
-
-            try:
-                price = round(ticker.iloc[0]['Adj Close'], 2)
-            except:
-                # cool down to prevent api crash
-                time.sleep(10)
-                continue
-
-            db['stocks'].insert_one({"symbol": symbol, "price": price, "date": today.strftime('%Y-%m-%d')})
-            print(symbol)

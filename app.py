@@ -14,6 +14,10 @@ import yfinance as yf
 import numpy as np 
 import matplotlib.pyplot as plt
 from pandas import DataFrame
+from pymongo import MongoClient
+import time
+from datetime import date
+from datetime import timedelta
 
 from sqlalchemy import create_engine
 app = Flask(__name__)
@@ -777,3 +781,35 @@ def logout():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+    # ADV2 Part 1 - check to make sure all stocks are updated on a daily basis
+
+    # declare the db
+    cluster = MongoClient("mongodb+srv://root:whatevergoes@stockcluster."
+                          "7jlai.mongodb.net/stocks?retryWrites=true&w=majority")
+
+    # declare db to be used for mongo queries
+    db = cluster['stocks']
+
+    # get the S&G500 codes
+    symbols = pd.read_excel('S&G500.xlsx').values.reshape(1, 504).tolist()[0]
+
+    tempDate = db['stocks'].find_one({})['date']
+    if tempDate != date.today().strftime('%Y-%m-%d'):
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+        # first clear the data
+        results = db['stocks'].delete_many({})
+        # fill in the new data
+        for symbol in symbols:
+            ticker = yf.download(symbol, start=yesterday.strftime('%Y-%m-%d'), end=today.strftime('%Y-%m-%d'))
+
+            try:
+                price = round(ticker.iloc[0]['Adj Close'], 2)
+            except:
+                # cool down to prevent api crash
+                time.sleep(10)
+                continue
+
+            db['stocks'].insert_one({"symbol": symbol, "price": price, "date": today.strftime('%Y-%m-%d')})
+            print(symbol)
